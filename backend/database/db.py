@@ -29,8 +29,8 @@ class Deal(Base):
     deal_stage = Column(String, nullable=True)
     pipeline = Column(String, nullable=True)
     amount = Column(Float, nullable=True)
-    close_date = Column(DateTime, nullable=True)
-    create_date = Column(DateTime, nullable=True)
+    close_date = Column(DateTime(timezone=True), nullable=True)
+    create_date = Column(DateTime(timezone=True), nullable=True)
     owner_id = Column(String, nullable=True)
 
     # Scoring input fields
@@ -67,18 +67,18 @@ class Deal(Base):
     is_closed = Column(Boolean, nullable=True, default=False)
 
     # Derived fields
-    notes_last_contacted = Column(DateTime, nullable=True)
-    notes_next_activity_date = Column(DateTime, nullable=True)
-    hs_lastmodifieddate = Column(DateTime, nullable=True)
+    notes_last_contacted = Column(DateTime(timezone=True), nullable=True)
+    notes_next_activity_date = Column(DateTime(timezone=True), nullable=True)
+    hs_lastmodifieddate = Column(DateTime(timezone=True), nullable=True)
 
     # Computed score (baseline)
     computed_score = Column(Float, nullable=True)
     score_band = Column(String, nullable=True)
 
     # Metadata
-    synced_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    synced_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Scenario(Base):
@@ -94,8 +94,8 @@ class Scenario(Base):
     lookups_json = Column(JSON, nullable=False, default=dict)
     simulations_json = Column(JSON, nullable=False, default=dict)
     version = Column(Integer, default=1)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class SyncStatus(Base):
@@ -106,8 +106,8 @@ class SyncStatus(Base):
     status = Column(String, nullable=False)       # running / completed / failed
     deals_synced = Column(Integer, default=0)
     error_message = Column(Text, nullable=True)
-    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    completed_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +138,9 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """Create all tables."""
+    """Create all tables. Drops and recreates if RESET_DB env var is set."""
+    import os
     async with engine.begin() as conn:
+        if os.environ.get("RESET_DB") == "1":
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
