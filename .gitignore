@@ -10,6 +10,9 @@ build/
 venv/
 env/
 
+# Environment (contains secrets)
+.env
+
 # SQLite databases (local dev only)
 *.db
 *.db-journal
