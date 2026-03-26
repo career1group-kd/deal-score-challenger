@@ -55,33 +55,6 @@ interface SyncStatus {
   deals_synced: number;
 }
 
-// Placeholder data for demo
-const DEMO_DISTRIBUTION: DistributionBin[] = Array.from({ length: 20 }, (_, i) => ({
-  bin_start: i * 5,
-  bin_end: (i + 1) * 5,
-  count: Math.floor(Math.random() * 30 + 5),
-  percentage: 0,
-}));
-
-const DEMO_BAND_COUNTS: Record<string, number> = {
-  Hot: 42,
-  Warm: 78,
-  Nurture: 95,
-  Cold: 135,
-};
-
-const DEMO_WIN_RATES: WinRateData[] = [
-  { band: "Hot", total: 42, won: 31, lost: 11, win_rate: 0.74 },
-  { band: "Warm", total: 78, won: 35, lost: 43, win_rate: 0.45 },
-  { band: "Nurture", total: 95, won: 19, lost: 76, win_rate: 0.2 },
-  { band: "Cold", total: 135, won: 8, lost: 127, win_rate: 0.06 },
-];
-
-const DEMO_SEGMENT_DATA = [
-  { name: "Arbeitender", deals: 145, avgScore: 58 },
-  { name: "Unternehmer", deals: 112, avgScore: 52 },
-  { name: "Arbeitsloser", deals: 93, avgScore: 47 },
-];
 
 export default function Dashboard() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -133,18 +106,18 @@ export default function Dashboard() {
     }
   };
 
-  const dist = analyticsData?.distribution ?? DEMO_DISTRIBUTION;
-  const bandCounts = analyticsData?.band_counts ?? DEMO_BAND_COUNTS;
-  const totalDeals = analyticsData?.total_deals ?? 350;
-  const avgScore = analyticsData?.mean_score ?? 54.3;
-  const wr = winRates.length > 0 ? winRates : DEMO_WIN_RATES;
+  const dist = analyticsData?.distribution ?? [];
+  const bandCounts = analyticsData?.band_counts ?? {};
+  const totalDeals = analyticsData?.total_deals ?? 0;
+  const avgScore = analyticsData?.mean_score ?? 0;
+  const wr = winRates;
 
   const donutData = Object.entries(bandCounts).map(([band, count]) => ({
     name: band,
     value: count,
   }));
 
-  const segmentData = DEMO_SEGMENT_DATA;
+  const segmentData: { name: string; deals: number; avgScore: number }[] = [];
 
   return (
     <div className="space-y-6">

@@ -20,27 +20,6 @@ interface ScenarioOption {
   is_baseline: boolean;
 }
 
-// Demo data for display when API is not available
-const DEMO_DEALS: Deal[] = Array.from({ length: 25 }, (_, i) => {
-  const segments = ["Arbeitender", "Unternehmer", "Arbeitsloser"];
-  const score = Math.round(Math.random() * 100);
-  const band =
-    score >= 80 ? "Hot" : score >= 60 ? "Warm" : score >= 40 ? "Nurture" : "Cold";
-  return {
-    id: `demo-${i}`,
-    hubspot_deal_id: `hs-${10000 + i}`,
-    deal_name: `Deal ${String.fromCharCode(65 + (i % 26))}${i + 1} GmbH`,
-    segment_neu: segments[i % 3],
-    deal_stage: "Qualifizierung",
-    amount: Math.round(Math.random() * 50000 + 5000),
-    is_won: Math.random() > 0.6 ? true : Math.random() > 0.3 ? false : null,
-    is_closed: Math.random() > 0.4,
-    computed_score: score,
-    score_band: band,
-    created_at: new Date(Date.now() - Math.random() * 90 * 86400000).toISOString(),
-  };
-});
-
 export default function DealExplorer() {
   const {
     deals,
@@ -106,8 +85,7 @@ export default function DealExplorer() {
       const dealsArr = Array.isArray(result) ? result : (result as any).deals ?? [];
       setDeals(dealsArr as Deal[], dealsArr.length);
     } catch {
-      // Use demo data
-      setDeals(DEMO_DEALS, DEMO_DEALS.length);
+      setDeals([], 0);
     }
   }, [filters, selectedScenarioId, setDeals, setLoading]);
 
