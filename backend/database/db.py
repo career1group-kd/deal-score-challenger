@@ -116,14 +116,15 @@ class SyncStatus(Base):
 
 settings = get_settings()
 
+_db_url = settings.async_database_url
 _engine_kwargs: dict = {
     "echo": settings.APP_ENV == "development",
     "future": True,
 }
-if settings.DATABASE_URL.startswith("postgresql"):
+if _db_url.startswith("postgresql"):
     _engine_kwargs.update({"pool_size": 5, "max_overflow": 10})
 
-engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
+engine = create_async_engine(_db_url, **_engine_kwargs)
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

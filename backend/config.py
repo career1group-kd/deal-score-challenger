@@ -12,11 +12,21 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
 
     @property
+    def async_database_url(self) -> str:
+        """Ensure the DATABASE_URL uses an async driver."""
+        url = self.DATABASE_URL
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url
+
+    @property
     def sync_database_url(self) -> str:
         """Return a synchronous database URL for Alembic / sync operations."""
         if self.DATABASE_URL.startswith("sqlite+aiosqlite"):
             return self.DATABASE_URL.replace("sqlite+aiosqlite", "sqlite")
-        if self.DATABASE_URL.startswith("postgresql+asyncpg"):
+        if "asyncpg" in self.DATABASE_URL:
             return self.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
         return self.DATABASE_URL
 
