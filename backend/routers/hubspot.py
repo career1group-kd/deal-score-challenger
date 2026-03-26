@@ -4,6 +4,8 @@ HubSpot sync endpoints.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import SyncStatus, get_db
 from models.schemas import HubSpotSyncResponse, HubSpotStatusResponse
 from hubspot.sync import sync_deals
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/hubspot", tags=["hubspot"])
 
@@ -22,14 +26,14 @@ async def trigger_sync(
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger a HubSpot sync (runs in background)."""
-    # For background tasks we need a fresh session
     async def _run_sync():
         from database.db import async_session
         async with async_session() as session:
             try:
                 count = await sync_deals(session, incremental=incremental)
+                logger.info(f"HubSpot sync completed: {count} deals")
             except Exception:
-                pass
+                logger.exception("HubSpot sync failed")
 
     background_tasks.add_task(_run_sync)
     return HubSpotSyncResponse(

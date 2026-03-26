@@ -96,11 +96,10 @@ async def sync_deals(session: AsyncSession, incremental: bool = False) -> int:
     await session.commit()
 
     try:
-        hs_deals = await client.get_all_deals(properties=DEAL_PROPERTIES)
         count = 0
         batch_size = 100
 
-        for hs_deal in hs_deals:
+        async for hs_deal in client.get_all_deals(properties=DEAL_PROPERTIES):
             props = hs_deal.get("properties", {})
             deal_data = map_hubspot_deal(props)
 
@@ -139,11 +138,13 @@ async def sync_deals(session: AsyncSession, incremental: bool = False) -> int:
 
             count += 1
 
-            # Commit in batches – releases the DB lock between batches
+            # Commit in batches and expire objects to free memory
             if count % batch_size == 0:
                 await session.commit()
+                session.expunge_all()
 
         await session.commit()
+        session.expunge_all()
 
         sync_record.status = "completed"
         sync_record.deals_synced = count

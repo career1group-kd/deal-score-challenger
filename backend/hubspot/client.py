@@ -102,17 +102,16 @@ class HubSpotClient:
             params["properties"] = ",".join(properties)
         return await self._request("GET", f"/crm/v3/objects/contacts/{contact_id}", params=params)
 
-    async def get_all_deals(self, properties: List[str] | None = None) -> List[Dict[str, Any]]:
-        """Page through all deals."""
-        all_deals: List[Dict[str, Any]] = []
+    async def get_all_deals(self, properties: List[str] | None = None):
+        """Async generator that yields deals page by page (memory-efficient)."""
         after: str | None = None
         while True:
             data = await self.get_deals(properties=properties, limit=100, after=after)
             results = data.get("results", [])
-            all_deals.extend(results)
+            for deal in results:
+                yield deal
             paging = data.get("paging", {})
             next_page = paging.get("next", {})
             after = next_page.get("after")
             if not after:
                 break
-        return all_deals
