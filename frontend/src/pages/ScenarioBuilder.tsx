@@ -127,7 +127,6 @@ export default function ScenarioBuilder() {
     resetToDefaults,
     resetWeight,
     loadScenario,
-    clearEditing,
   } = useScenario();
 
   const [activeTab, setActiveTab] = useState<Segment>("Arbeitender");
