@@ -43,22 +43,25 @@ DEFAULT_LOOKUPS: Dict[str, Dict[str, float]] = {
     },
 
     # ---------------------------------------------------------------
-    # Next-Step freshness
-    # Keys must match derive_next_step_freshness() output
+    # Next-Step / FollowUp (from feedbackgespraech_datum + status)
+    # Keys must match derive_next_step_feedback() output
     # ---------------------------------------------------------------
     "next_step": {
-        "Aktuell <= 7 Tage": 1.0,
-        "Aelter als 7 Tage": 0.4,
-        "Kein Next Step": 0.0,
+        "FollowUp nicht notwendig": 0.8,
+        "FollowUp in der Zukunft": 1.0,
+        "FollowUp in der Vergangenheit": 0.3,
+        "Kein FollowUp gesetzt": 0.0,
     },
 
     # ---------------------------------------------------------------
-    # Aktivitaet (scheduled activity)
-    # Keys must match derive_has_scheduled_activity() output
+    # Aktivitaet (from num_notes count)
+    # Keys must match derive_aktivitaet_from_notes() output
     # ---------------------------------------------------------------
     "aktivitaet": {
-        "Geplant": 1.0,
-        "Keine geplant": 0.0,
+        ">12": 1.0,
+        "6-12": 0.7,
+        "3-6": 0.4,
+        "<3": 0.0,
     },
 
     # ---------------------------------------------------------------
@@ -122,14 +125,14 @@ DEFAULT_LOOKUPS: Dict[str, Dict[str, float]] = {
     },
 
     # ---------------------------------------------------------------
-    # Setter-Rating (1-5 numeric from HubSpot)
+    # Setter-Rating (average of rating_company, produkt, rating_setter___closer)
+    # Keys must match derive_setter_rating_avg() output
     # ---------------------------------------------------------------
     "setter_rating": {
-        "5": 1.0,
-        "4": 0.833,
-        "3": 0.667,
-        "2": 0.333,
-        "1": 0.0,
+        "9-10": 1.0,
+        "6-8": 0.6,
+        "1-5": 0.2,
+        "Keine Angabe": 0.0,
     },
 
     # ---------------------------------------------------------------

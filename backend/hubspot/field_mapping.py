@@ -29,6 +29,9 @@ DEAL_FIELD_MAP: Dict[str, str] = {
     "rating_company": "rating_company",
     "notes_last_contacted": "notes_last_contacted",
     "notes_next_activity_date": "notes_next_activity_date",
+    "num_notes": "num_notes",
+    "naechstes_feedbackgespraech_datum": "naechstes_feedbackgespraech_datum",
+    "feedbackgesprach_status": "feedbackgesprach_status",
     # New recommended fields (if they exist in HubSpot)
     "deal_score_funding_clarity": "finanzierung",
     "deal_score_decision_clarity": "entscheidungssituation",
@@ -43,6 +46,7 @@ CONTACT_PROPERTIES = ["frist_incoming_lead_score", "zustandiges_amt"]
 DATE_FIELDS = {
     "close_date", "create_date", "notes_last_contacted",
     "notes_next_activity_date", "hs_lastmodifieddate",
+    "naechstes_feedbackgespraech_datum",
 }
 
 # ---------------------------------------------------------------------------
@@ -156,6 +160,11 @@ def map_hubspot_deal(hs_properties: Dict[str, Any]) -> Dict[str, Any]:
                 out[internal_key] = float(val)
             except (ValueError, TypeError):
                 out[internal_key] = None
+        elif internal_key == "num_notes":
+            try:
+                out[internal_key] = int(float(val))
+            except (ValueError, TypeError):
+                out[internal_key] = None
         else:
             out[internal_key] = val
 
@@ -217,3 +226,78 @@ def derive_has_scheduled_activity(notes_next_activity_date: Optional[datetime]) 
     if notes_next_activity_date is None:
         return False
     return notes_next_activity_date > datetime.now(timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# NEW derived fields
+# ---------------------------------------------------------------------------
+
+def derive_aktivitaet_from_notes(num_notes: Any) -> str:
+    """Derive Aktivitaet category from num_notes count.
+
+    Categories: <3, 3-6, 6-12, >12
+    """
+    if num_notes is None:
+        return "<3"
+    try:
+        n = int(float(str(num_notes)))
+    except (ValueError, TypeError):
+        return "<3"
+    if n < 3:
+        return "<3"
+    if n <= 6:
+        return "3-6"
+    if n <= 12:
+        return "6-12"
+    return ">12"
+
+
+def derive_next_step_feedback(
+    feedbackgesprach_datum: Optional[datetime],
+    feedbackgesprach_status: Optional[str],
+) -> str:
+    """Derive next step from feedback date and status.
+
+    Returns one of:
+      - FollowUp nicht notwendig  (status == "Nicht notwendig")
+      - FollowUp in der Zukunft   (date in the future)
+      - FollowUp in der Vergangenheit (date in the past)
+      - Kein FollowUp gesetzt      (no date, not "nicht notwendig")
+    """
+    if feedbackgesprach_status and feedbackgesprach_status.strip().lower() == "nicht notwendig":
+        return "FollowUp nicht notwendig"
+    if feedbackgesprach_datum is None:
+        return "Kein FollowUp gesetzt"
+    now = datetime.now(timezone.utc)
+    if feedbackgesprach_datum > now:
+        return "FollowUp in der Zukunft"
+    return "FollowUp in der Vergangenheit"
+
+
+def derive_setter_rating_avg(
+    rating_company: Any,
+    produkt: Any,
+    rating_setter_closer: Any,
+) -> str:
+    """Compute average of up to 3 rating fields (each 1-10 scale).
+
+    Returns one of: 1-5, 6-8, 9-10, Keine Angabe
+    """
+    values = []
+    for raw in [rating_company, produkt, rating_setter_closer]:
+        if raw is None:
+            continue
+        try:
+            v = float(str(raw))
+            if 1 <= v <= 10:
+                values.append(v)
+        except (ValueError, TypeError):
+            continue
+    if not values:
+        return "Keine Angabe"
+    avg = sum(values) / len(values)
+    if avg <= 5:
+        return "1-5"
+    if avg <= 8:
+        return "6-8"
+    return "9-10"

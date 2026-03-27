@@ -30,16 +30,16 @@ export const DEFAULT_LOOKUPS: Record<string, Record<string, number | null>> = {
     "Keine Angabe": 0.0,
   },
   next_step: {
-    "Termin steht": 1.0,
-    "Follow-up geplant": 0.7,
-    "Noch offen": 0.4,
-    "Kein Next Step": 0.1,
+    "FollowUp in der Zukunft": 1.0,
+    "FollowUp nicht notwendig": 0.8,
+    "FollowUp in der Vergangenheit": 0.3,
+    "Kein FollowUp gesetzt": 0.0,
   },
   aktivitaet: {
-    "Sehr aktiv": 1.0,
-    Aktiv: 0.7,
-    Maessig: 0.4,
-    Inaktiv: 0.1,
+    ">12": 1.0,
+    "6-12": 0.7,
+    "3-6": 0.4,
+    "<3": 0.0,
   },
   aging: {
     "<15 Tage": 1.0,
@@ -81,10 +81,9 @@ export const DEFAULT_LOOKUPS: Record<string, Record<string, number | null>> = {
     "Kein Kontakt JC": 0.1,
   },
   setter_rating: {
-    A: 1.0,
-    B: 0.7,
-    C: 0.4,
-    D: 0.15,
+    "9-10": 1.0,
+    "6-8": 0.6,
+    "1-5": 0.2,
     "Keine Angabe": 0.0,
   },
   roi: {

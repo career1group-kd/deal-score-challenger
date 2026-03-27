@@ -51,6 +51,9 @@ class Deal(Base):
     jc_status = Column(String, nullable=True)
 
     # Additional HubSpot fields
+    num_notes = Column(Integer, nullable=True)
+    naechstes_feedbackgespraech_datum = Column(DateTime(timezone=True), nullable=True)
+    feedbackgesprach_status = Column(String, nullable=True)
     fachgebiet = Column(String, nullable=True)
     produkt = Column(String, nullable=True)
     rating_company = Column(String, nullable=True)

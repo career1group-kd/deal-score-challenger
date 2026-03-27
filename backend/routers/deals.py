@@ -118,6 +118,9 @@ async def field_fill_rates(db: AsyncSession = Depends(get_db)):
         "aktivitaet", "stage_aging", "produktfit", "arbeitgeber_fit",
         "unternehmensfit", "budget_vorhanden", "roi_erwartung",
         "unterlagen", "jc_status", "deutsch_niveau", "pc_internet",
+        # Raw source fields for derived scores
+        "num_notes", "naechstes_feedbackgespraech_datum",
+        "feedbackgesprach_status", "rating_company", "produkt",
     ]
     total_q = await db.execute(select(func.count(Deal.id)))
     total = total_q.scalar() or 1

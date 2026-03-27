@@ -19,6 +19,8 @@ from hubspot.field_mapping import (
     map_hubspot_deal, get_calculator_segment,
     derive_response_speed, derive_stage_aging,
     derive_next_step_freshness, derive_has_scheduled_activity,
+    derive_aktivitaet_from_notes, derive_next_step_feedback,
+    derive_setter_rating_avg,
 )
 from scoring.engine import score_deal_simple
 
@@ -117,13 +119,21 @@ async def sync_deals(session: AsyncSession, incremental: bool = False) -> int:
             deal_data["stage_aging"] = derive_stage_aging(
                 deal_data.get("hs_lastmodifieddate")
             )
-            deal_data["next_step"] = derive_next_step_freshness(
-                deal_data.get("notes_next_activity_date")
+            # Next Step: from feedbackgespraech datum + status
+            deal_data["next_step"] = derive_next_step_feedback(
+                deal_data.get("naechstes_feedbackgespraech_datum"),
+                deal_data.get("feedbackgesprach_status"),
             )
-            has_activity = derive_has_scheduled_activity(
-                deal_data.get("notes_next_activity_date")
+            # Aktivitaet: from num_notes count
+            deal_data["aktivitaet"] = derive_aktivitaet_from_notes(
+                deal_data.get("num_notes")
             )
-            deal_data["aktivitaet"] = "Geplant" if has_activity else "Keine geplant"
+            # Setter-Rating: average of 3 rating fields
+            deal_data["setter_rating"] = derive_setter_rating_avg(
+                deal_data.get("rating_company"),
+                deal_data.get("produkt"),
+                deal_data.get("setter_rating"),
+            )
 
             deal = await _upsert_deal(session, deal_data)
 
