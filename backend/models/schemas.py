@@ -191,6 +191,12 @@ class WinRateByBand(BaseModel):
     win_rate: float
 
 
+class WonLostBin(BaseModel):
+    name: str
+    won: int
+    lost: int
+
+
 class BacktestResult(BaseModel):
     scenario_id: str
     scenario_name: str
@@ -201,6 +207,7 @@ class BacktestResult(BaseModel):
     f1_score: float
     optimal_cutoff: float
     revenue_impact: Dict[str, float]
+    won_lost_histogram: List[WonLostBin] = []
 
 
 class ConfusionMatrixResult(BaseModel):

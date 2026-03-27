@@ -13,7 +13,7 @@ import numpy as np
 
 from models.schemas import (
     WinRateByBand, BacktestResult, ConfusionMatrixResult,
-    ROCPoint, RevenueImpact,
+    ROCPoint, RevenueImpact, WonLostBin,
 )
 
 
@@ -182,6 +182,36 @@ def revenue_impact_analysis(
     return results
 
 
+def won_lost_histogram(
+    deals: List[dict],
+    score_key: str = "computed_score",
+    bin_size: float = 5.0,
+) -> List[WonLostBin]:
+    """Build won/lost histogram bins."""
+    bins: Dict[str, dict] = {}
+    for start in range(0, 100, int(bin_size)):
+        end = start + int(bin_size)
+        name = f"{start}-{end}"
+        bins[name] = {"won": 0, "lost": 0}
+
+    for d in deals:
+        score = d.get(score_key)
+        is_closed = d.get("is_closed", False)
+        if score is None or not is_closed:
+            continue
+        bin_start = int(min(score, 99) // bin_size) * int(bin_size)
+        bin_end = bin_start + int(bin_size)
+        name = f"{bin_start}-{bin_end}"
+        if name not in bins:
+            continue
+        if d.get("is_won"):
+            bins[name]["won"] += 1
+        else:
+            bins[name]["lost"] += 1
+
+    return [WonLostBin(name=k, won=v["won"], lost=v["lost"]) for k, v in bins.items()]
+
+
 def backtest_scenario(
     deals: List[dict],
     scenario_id: str,
@@ -196,6 +226,7 @@ def backtest_scenario(
     cm = confusion_matrix(closed_deals, threshold=optimal, score_key=score_key)
     rev = revenue_impact_analysis(closed_deals, score_key)
     rev_dict = {str(r.threshold): r.revenue_above for r in rev}
+    histogram = won_lost_histogram(closed_deals, score_key)
 
     return BacktestResult(
         scenario_id=scenario_id,
@@ -207,4 +238,5 @@ def backtest_scenario(
         f1_score=cm.f1_score,
         optimal_cutoff=optimal,
         revenue_impact=rev_dict,
+        won_lost_histogram=histogram,
     )

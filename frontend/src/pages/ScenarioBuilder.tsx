@@ -1,5 +1,17 @@
 import { useState, useCallback, useEffect } from "react";
-import { Save, RotateCcw, AlertTriangle, Check, Info } from "lucide-react";
+import {
+  Save,
+  RotateCcw,
+  AlertTriangle,
+  Check,
+  Info,
+  Pencil,
+  Copy,
+  Trash2,
+  Star,
+  Plus,
+  Loader2,
+} from "lucide-react";
 import WeightSlider from "../components/WeightSlider";
 import GateConfigComponent from "../components/GateConfig";
 import FieldSimulator from "../components/FieldSimulator";
@@ -13,6 +25,21 @@ import {
   type Segment,
   type GateConfig,
 } from "../utils/scoring";
+
+interface ScenarioListItem {
+  id: string;
+  name: string;
+  description?: string;
+  is_baseline: boolean;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  weights: Record<string, number>;
+  gates: GateConfig;
+  bands: { hot_min: number; warm_min: number; nurture_min: number };
+  lookups: Record<string, Record<string, number | null>>;
+  simulations?: { rules: Array<{ field: string; distribution: Record<string, number> }> };
+}
 
 const SEGMENTS: Segment[] = ["Arbeitender", "Unternehmer", "Arbeitsloser"];
 const SEGMENT_LABELS: Record<Segment, string> = {
@@ -82,10 +109,12 @@ const LOOKUP_HUBSPOT_META: Record<string, { property: string; dbField: string; d
 
 export default function ScenarioBuilder() {
   const {
+    editingId,
     weights,
     gates,
     bands,
     lookups,
+    simulations,
     scenarioName,
     scenarioDescription,
     isDirty,
@@ -97,6 +126,8 @@ export default function ScenarioBuilder() {
     setScenarioDescription,
     resetToDefaults,
     resetWeight,
+    loadScenario,
+    clearEditing,
   } = useScenario();
 
   const [activeTab, setActiveTab] = useState<Segment>("Arbeitender");
@@ -107,6 +138,22 @@ export default function ScenarioBuilder() {
   const [saved, setSaved] = useState(false);
   const [fillRates, setFillRates] = useState<Record<string, number>>({});
   const [totalDeals, setTotalDeals] = useState(0);
+  const [scenarioList, setScenarioList] = useState<ScenarioListItem[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const loadScenarioList = useCallback(() => {
+    setListLoading(true);
+    scenarioApi
+      .getScenarios()
+      .then((res) => setScenarioList(res as ScenarioListItem[]))
+      .catch(() => {})
+      .finally(() => setListLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadScenarioList();
+  }, [loadScenarioList]);
 
   useEffect(() => {
     dealsApi.getFieldFillRates().then((res) => {
@@ -117,26 +164,94 @@ export default function ScenarioBuilder() {
 
   const currentSum = sumSegmentWeights(activeTab, weights);
 
+  const buildSimulationsPayload = () => {
+    const rules = Object.entries(simulations)
+      .filter(([, dist]) => Object.keys(dist).length > 0)
+      .map(([field, distribution]) => ({ field, distribution }));
+    return { rules };
+  };
+
   const handleSave = useCallback(async () => {
     if (!scenarioName.trim()) return;
     setSaving(true);
     try {
-      await scenarioApi.createScenario({
+      const payload = {
         name: scenarioName,
         description: scenarioDescription,
         weights,
         gates,
         bands,
         lookups,
-      });
+        simulations: buildSimulationsPayload(),
+      };
+      if (editingId) {
+        await scenarioApi.updateScenario(editingId, payload);
+      } else {
+        await scenarioApi.createScenario(payload);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      loadScenarioList();
     } catch {
       // silent
     } finally {
       setSaving(false);
     }
-  }, [scenarioName, scenarioDescription, weights, gates, bands, lookups]);
+  }, [scenarioName, scenarioDescription, weights, gates, bands, lookups, simulations, editingId, loadScenarioList]);
+
+  const handleEdit = (scenario: ScenarioListItem) => {
+    loadScenario({
+      id: scenario.id,
+      weights: scenario.weights as any,
+      gates: scenario.gates,
+      bands: scenario.bands,
+      lookups: scenario.lookups,
+      simulations: scenario.simulations,
+      name: scenario.name,
+      description: scenario.description,
+    });
+  };
+
+  const handleDuplicate = (scenario: ScenarioListItem) => {
+    loadScenario({
+      weights: scenario.weights as any,
+      gates: scenario.gates,
+      bands: scenario.bands,
+      lookups: scenario.lookups,
+      simulations: scenario.simulations,
+      name: `${scenario.name} (Kopie)`,
+      description: scenario.description,
+    });
+    // No id = will create new on save
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeleting(id);
+    try {
+      await scenarioApi.deleteScenario(id);
+      if (editingId === id) {
+        resetToDefaults();
+      }
+      loadScenarioList();
+    } catch {
+      // silent
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleSetBaseline = async (id: string) => {
+    try {
+      await scenarioApi.setBaseline(id);
+      loadScenarioList();
+    } catch {
+      // silent
+    }
+  };
+
+  const handleNew = () => {
+    resetToDefaults();
+  };
 
   return (
     <div className="space-y-6">
@@ -145,10 +260,19 @@ export default function ScenarioBuilder() {
         <div>
           <h1 className="text-2xl font-bold text-white">Szenario-Builder</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Gewichte, Gates und Lookup-Tabellen konfigurieren
+            {editingId ? `Bearbeite: ${scenarioName}` : "Neues Szenario erstellen"}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {editingId && (
+            <button
+              onClick={handleNew}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Neues Szenario
+            </button>
+          )}
           <button
             onClick={resetToDefaults}
             className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors"
@@ -166,10 +290,105 @@ export default function ScenarioBuilder() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {saved ? "Gespeichert" : "Szenario speichern"}
+            {saved
+              ? "Gespeichert"
+              : editingId
+              ? "Szenario aktualisieren"
+              : "Szenario speichern"}
           </button>
         </div>
       </div>
+
+      {/* Existing scenarios list */}
+      {scenarioList.length > 0 && (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-slate-300 mb-3">
+            Gespeicherte Szenarien ({scenarioList.length})
+          </h3>
+          <div className="space-y-2">
+            {scenarioList.map((sc) => (
+              <div
+                key={sc.id}
+                className={`flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
+                  editingId === sc.id
+                    ? "bg-blue-900/30 border-blue-500/50"
+                    : "bg-slate-900/50 border-slate-700/50 hover:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {sc.is_baseline && (
+                    <Star className="w-4 h-4 text-amber-400 shrink-0" fill="currentColor" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white font-medium truncate">
+                        {sc.name}
+                      </span>
+                      {sc.is_baseline && (
+                        <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded font-medium shrink-0">
+                          Baseline
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-500 shrink-0">
+                        v{sc.version}
+                      </span>
+                    </div>
+                    {sc.description && (
+                      <p className="text-xs text-slate-500 truncate mt-0.5">
+                        {sc.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-4">
+                  {!sc.is_baseline && (
+                    <button
+                      onClick={() => handleSetBaseline(sc.id)}
+                      className="p-1.5 text-slate-500 hover:text-amber-400 rounded transition-colors"
+                      title="Als Baseline setzen"
+                    >
+                      <Star className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleEdit(sc)}
+                    className="p-1.5 text-slate-500 hover:text-blue-400 rounded transition-colors"
+                    title="Bearbeiten"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDuplicate(sc)}
+                    className="p-1.5 text-slate-500 hover:text-green-400 rounded transition-colors"
+                    title="Duplizieren"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(sc.id)}
+                    disabled={deleting === sc.id}
+                    className="p-1.5 text-slate-500 hover:text-red-400 rounded transition-colors disabled:opacity-50"
+                    title="Loeschen"
+                  >
+                    {deleting === sc.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {listLoading && scenarioList.length === 0 && (
+        <div className="flex items-center gap-2 text-slate-400 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Lade Szenarien...
+        </div>
+      )}
 
       {/* Name + Description */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">

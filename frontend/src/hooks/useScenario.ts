@@ -14,6 +14,7 @@ import {
 } from "../utils/scoring";
 
 interface ScenarioState {
+  editingId: string | null;
   weights: ScenarioWeights;
   gates: GateConfig;
   bands: BandThresholds;
@@ -36,16 +37,20 @@ interface ScenarioState {
   toggleSimulations: () => void;
   resetSimulations: () => void;
   loadScenario: (scenario: {
+    id?: string;
     weights: ScenarioWeights;
     gates: GateConfig;
     bands: BandThresholds;
     lookups: Record<string, Record<string, number | null>>;
+    simulations?: { rules: Array<{ field: string; distribution: Record<string, number> }> };
     name?: string;
     description?: string;
   }) => void;
+  clearEditing: () => void;
 }
 
 export const useScenario = create<ScenarioState>((set) => ({
+  editingId: null,
   weights: { ...DEFAULT_WEIGHTS },
   gates: structuredClone(DEFAULT_GATES),
   bands: { ...DEFAULT_BANDS },
@@ -91,10 +96,13 @@ export const useScenario = create<ScenarioState>((set) => ({
 
   resetToDefaults: () =>
     set({
+      editingId: null,
       weights: { ...DEFAULT_WEIGHTS },
       gates: structuredClone(DEFAULT_GATES),
       bands: { ...DEFAULT_BANDS },
       lookups: structuredClone(DEFAULT_LOOKUPS),
+      scenarioName: "",
+      scenarioDescription: "",
       isDirty: false,
     }),
 
@@ -122,14 +130,26 @@ export const useScenario = create<ScenarioState>((set) => ({
       isDirty: true,
     }),
 
-  loadScenario: (scenario) =>
+  loadScenario: (scenario) => {
+    // Convert simulation rules array to flat dict
+    const sims: Record<string, Record<string, number>> = structuredClone(DEFAULT_SIMULATIONS);
+    if (scenario.simulations?.rules) {
+      for (const rule of scenario.simulations.rules) {
+        sims[rule.field] = { ...rule.distribution };
+      }
+    }
     set({
+      editingId: scenario.id ?? null,
       weights: { ...scenario.weights },
       gates: structuredClone(scenario.gates),
       bands: { ...scenario.bands },
       lookups: structuredClone(scenario.lookups),
+      simulations: sims,
       scenarioName: scenario.name ?? "",
       scenarioDescription: scenario.description ?? "",
       isDirty: false,
-    }),
+    });
+  },
+
+  clearEditing: () => set({ editingId: null }),
 }));

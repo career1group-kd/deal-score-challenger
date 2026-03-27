@@ -4,6 +4,7 @@ Analytics endpoints: distribution, win-rate, backtest, compare, roc, revenue-imp
 
 from __future__ import annotations
 
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,6 +25,8 @@ from analytics.cohort_analysis import compare_scenarios
 from scoring.engine import score_deal_simple
 from scenarios.manager import get_scenario
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
@@ -36,6 +39,29 @@ async def _load_deals(db: AsyncSession, segment: str | None = None) -> list[dict
     return [{c.key: getattr(d, c.key) for c in Deal.__table__.columns} for d in deals]
 
 
+async def _rescore_deals(db: AsyncSession, deals: list[dict], scenario_id: str):
+    """Re-score deals in-place using the given scenario. Returns the scenario."""
+    scenario = await get_scenario(db, scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    simulations = getattr(scenario, "simulations", None)
+    for d in deals:
+        try:
+            score, band = score_deal_simple(
+                d,
+                weights=scenario.weights,
+                gates=scenario.gates,
+                bands=scenario.bands,
+                lookup_overrides=scenario.lookups or None,
+                simulations=simulations,
+            )
+            d["computed_score"] = score
+            d["score_band"] = band
+        except Exception:
+            pass
+    return scenario
+
+
 @router.get("/distribution", response_model=AnalyticsResponse)
 async def get_distribution(
     segment: Optional[str] = Query(None),
@@ -46,25 +72,9 @@ async def get_distribution(
     deals = await _load_deals(db, segment)
 
     if scenario_id:
-        scenario = await get_scenario(db, scenario_id)
-        if scenario:
-            simulations = getattr(scenario, "simulations", None)
-            scores = []
-            for d in deals:
-                try:
-                    score, _ = score_deal_simple(
-                        d, weights=scenario.weights, gates=scenario.gates,
-                        bands=scenario.bands, lookup_overrides=scenario.lookups or None,
-                        simulations=simulations,
-                    )
-                    scores.append(score)
-                except Exception:
-                    continue
-        else:
-            scores = [d["computed_score"] for d in deals if d.get("computed_score") is not None]
-    else:
-        scores = [d["computed_score"] for d in deals if d.get("computed_score") is not None]
+        await _rescore_deals(db, deals, scenario_id)
 
+    scores = [d["computed_score"] for d in deals if d.get("computed_score") is not None]
     return compute_distribution(scores, num_bins=bins)
 
 
@@ -77,20 +87,7 @@ async def get_win_rate(
     deals = await _load_deals(db, segment)
 
     if scenario_id:
-        scenario = await get_scenario(db, scenario_id)
-        if scenario:
-            simulations = getattr(scenario, "simulations", None)
-            for d in deals:
-                try:
-                    score, band = score_deal_simple(
-                        d, weights=scenario.weights, gates=scenario.gates,
-                        bands=scenario.bands, lookup_overrides=scenario.lookups or None,
-                        simulations=simulations,
-                    )
-                    d["computed_score"] = score
-                    d["score_band"] = band
-                except Exception:
-                    pass
+        await _rescore_deals(db, deals, scenario_id)
 
     return win_rate_by_band(deals)
 
@@ -107,60 +104,56 @@ async def get_backtest(
     hot_min, warm_min, nurture_min = 80.0, 60.0, 40.0
 
     if scenario_id:
-        scenario = await get_scenario(db, scenario_id)
-        if scenario is None:
-            raise HTTPException(status_code=404, detail="Scenario not found")
+        scenario = await _rescore_deals(db, deals, scenario_id)
         sc_id = scenario.id
         sc_name = scenario.name
         hot_min = scenario.bands.hot_min
         warm_min = scenario.bands.warm_min
         nurture_min = scenario.bands.nurture_min
 
-        # Re-score deals with scenario
-        simulations = getattr(scenario, "simulations", None)
-        for d in deals:
-            try:
-                score, band = score_deal_simple(
-                    d,
-                    weights=scenario.weights,
-                    gates=scenario.gates,
-                    bands=scenario.bands,
-                    lookup_overrides=scenario.lookups or None,
-                    simulations=simulations,
-                )
-                d["computed_score"] = score
-                d["score_band"] = band
-            except Exception:
-                pass
-
     return backtest_scenario(deals, sc_id, sc_name, "computed_score", hot_min, warm_min, nurture_min)
 
 
 @router.get("/confusion-matrix", response_model=ConfusionMatrixResult)
 async def get_confusion_matrix(
+    scenario_id: Optional[str] = Query(None),
     threshold: float = Query(60.0),
     segment: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     deals = await _load_deals(db, segment)
+
+    if scenario_id:
+        await _rescore_deals(db, deals, scenario_id)
+
     return confusion_matrix(deals, threshold=threshold)
 
 
 @router.get("/roc", response_model=List[ROCPoint])
 async def get_roc(
+    scenario_id: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     deals = await _load_deals(db, segment)
+
+    if scenario_id:
+        await _rescore_deals(db, deals, scenario_id)
+
     return roc_curve(deals)
 
 
 @router.get("/revenue-impact", response_model=List[RevenueImpact])
 async def get_revenue_impact(
+    scenario_id: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     deals = await _load_deals(db, segment)
+
+    if scenario_id:
+        await _rescore_deals(db, deals, scenario_id)
+
     return revenue_impact_analysis(deals)
 
 

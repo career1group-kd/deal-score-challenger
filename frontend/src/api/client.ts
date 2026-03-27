@@ -104,16 +104,17 @@ export const analytics = {
     return request<unknown>(`/analytics/win-rate${qs}`);
   },
   getBacktest: (scenarioId: string) =>
-    request<unknown>(`/analytics/backtest/${scenarioId}`),
+    request<unknown>(`/analytics/backtest?scenario_id=${scenarioId}`),
   getCompare: (scenarioA: string, scenarioB: string) =>
     request<unknown>(`/analytics/compare?scenario_a=${scenarioA}&scenario_b=${scenarioB}`),
   getRoc: (scenarioId: string) =>
-    request<unknown>(`/analytics/roc/${scenarioId}`),
+    request<unknown>(`/analytics/roc?scenario_id=${scenarioId}`),
   getRevenueImpact: (scenarioId: string) =>
-    request<unknown>(`/analytics/revenue-impact/${scenarioId}`),
+    request<unknown>(`/analytics/revenue-impact?scenario_id=${scenarioId}`),
   getConfusionMatrix: (scenarioId: string, threshold?: number) => {
-    const qs = threshold != null ? `?threshold=${threshold}` : "";
-    return request<unknown>(`/analytics/confusion-matrix/${scenarioId}${qs}`);
+    const params = [`scenario_id=${scenarioId}`];
+    if (threshold != null) params.push(`threshold=${threshold}`);
+    return request<unknown>(`/analytics/confusion-matrix?${params.join("&")}`);
   },
 };
 
